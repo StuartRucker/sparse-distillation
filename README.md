@@ -42,3 +42,7 @@ Scale up to using amazon reviews, Same parameter counts as paper, Still use robe
 - parallelize across gpus dataparralel
 - sparse gradient
 - `torch.backends.cudnn.benchmark = True`
+
+
+cat sentiment_reviews/* | shuf | split -l 11000 - sentiment_reviews_shuffled/reviews-
+

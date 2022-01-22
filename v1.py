@@ -15,7 +15,7 @@ from torch.utils.data import DataLoader
 
 eps = lambda: random.random()*.01
 MAX_WORDS_TO_PAD_TO = 300
-NUM_WORDS_TO_TRACK = 1000
+NUM_WORDS_TO_TRACK = 100
 
 # sentiment_analysis = pipeline("sentiment-analysis",model="siebert/sentiment-roberta-large-english")
 
@@ -27,10 +27,10 @@ NUM_WORDS_TO_TRACK = 1000
 
 vectorizer = CountVectorizer(ngram_range=(1, 4), max_features=NUM_WORDS_TO_TRACK, input='filename')
 
-# train_files = random.sample(glob.glob("data/imdb/train/*/*.txt"), 5000)
-# test_files = random.sample(glob.glob("data/imdb/test/*/*.txt"), 5000)
-train_files = glob.glob("data/imdb/train/*/*.txt")
-test_files = glob.glob("data/imdb/test/*/*.txt")
+train_files = random.sample(glob.glob("data/imdb/train/*/*.txt"), 5000)
+test_files = random.sample(glob.glob("data/imdb/test/*/*.txt"), 5000)
+# train_files = glob.glob("data/imdb/train/*/*.txt")
+# test_files = glob.glob("data/imdb/test/*/*.txt")
 
 
 
@@ -96,7 +96,20 @@ class DAN(nn.Module):
 
 model = DAN()
 
-
+def save_model(model, optimizer, epoch):
+    PATH = "model.pt"
+    torch.save({
+                'epoch': epoch,
+                'model_state_dict': model.state_dict(),
+                'optimizer_state_dict': optimizer.state_dict()
+                }, PATH)
+def load_model(model, optimizer):
+    PATH = "model.pt"
+    checkpoint = torch.load(PATH)
+    model.load_state_dict(checkpoint['model_state_dict'])
+    optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+    model.train()
+    return epoch
 
 loss_fn = torch.nn.KLDivLoss(reduction='batchmean')
 optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
@@ -126,13 +139,16 @@ def check_accuracy(loader, model):
     return answer
 
 
-for epoch in range(30):
+for epoch in range(3):
+    load_model(model, optimizer)
     for train_features, train_labels in tqdm(train_dataloader):
         optimizer.zero_grad()
         output = model(train_features)
         loss = loss_fn(output, train_labels)
         loss.backward()
         optimizer.step()
+    
+    save_model(model, optimizer, epoch)
     if epoch % 5 == 0:
         print(f'train accuracy {check_accuracy(train_dataloader, model)}')
         print(f'test accuracy {check_accuracy(test_dataloader, model)}')
