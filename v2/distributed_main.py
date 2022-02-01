@@ -39,8 +39,13 @@ def parse_args():
                         help='local rank for distributed training')
     parser.add_argument('--workers', default=-1, type=int, 
                         help='number of data loading workers')
+    parser.add_argument('--distributed', default=True, type=bool, 
+                        help='whether it is distributed')
 
     parser.add_argument('--ngrams', type=str, default='../data/fast_countvectorizer/top_million_ngrams.txt')
+
+    parser.add_argument('--data_dir', type=str, default='../../et_review_chunks')
+
     args = parser.parse_args()
     return args
                                          
@@ -111,6 +116,8 @@ def main(args):
         pass
     
     ### data ###
+    
+    data_paths = [os.path.join(args.data_dir,f) for f in os.listdir(args.data_dir)]
     entire_dataset = SentimentReviews(data_paths, tokenizer)
     train_amount = int(len(entire_dataset)*.8)
     train_dataset, val_dataset = torch.utils.data.random_split(entire_dataset, [train_amount, len(entire_dataset)-train_amount])
