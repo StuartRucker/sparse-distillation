@@ -16,7 +16,7 @@ def get_epoch_from_str(s):
     end_index = s.rfind(".")
     return s[start_index:end_index]
 
-def load_model(model, optimizer, folder):
+def load_model(model, opt_sparse, opt_dense, folder):
     potential_models = glob.glob(os.path.join(folder + "/model-*.pt"))
     if len(potential_models) == 0:
         print("Starting From Scratch - Found No Checkpoint")
@@ -26,20 +26,22 @@ def load_model(model, optimizer, folder):
 
     checkpoint = torch.load(model_path)
     model.load_state_dict(checkpoint['model_state_dict'])
-    optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+    opt_sparse.load_state_dict(checkpoint['opt_sparse_state_dict'])
+    opt_dense.load_state_dict(checkpoint['opt_dense_state_dict'])
     model.train()
     print(f"Found Saved Checkpoint, starting from epoch {checkpoint['epoch']}")
     return checkpoint['epoch']
 
-def save_model(model, optimizer, epoch, folder):
+def save_model(model, opt_sparse, opt_dense, epoch, folder):
     torch.save({
                 'epoch': epoch,
                 'model_state_dict': model.state_dict(),
-                'optimizer_state_dict': optimizer.state_dict()
+                'opt_sparse_state_dict': opt_sparse.state_dict(),
+                'opt_dense_state_dict': opt_dense.state_dict()
                 }, os.path.join(folder, f"model-{epoch}.pt"))
 
 
-def check_accuracy(loader, model, first_n_samples=100):
+def check_accuracy(loader, model, device, first_n_samples=100):
     num_correct = 0
     num_samples = 0
     model.eval()
@@ -51,7 +53,7 @@ def check_accuracy(loader, model, first_n_samples=100):
             scores = model(x)
             
             _, predictions = scores.max(1)
-            _, true_value = y.max(1)
+            _, true_value = y.to(device).max(1)
             num_correct += (predictions == true_value).sum()
             num_samples += predictions.size(0)
 

@@ -33,11 +33,7 @@ def parse_args():
 
 def main():
     args = parse_args()
-    use_hvd = True
-    if use_hvd:
-        hvd.init()
-    if not use_hvd or hvd.rank()==0:
-        writer = SummaryWriter()
+    writer = SummaryWriter()
     print(config) 
     data_paths = [os.path.join(args.data_dir,f) for f in os.listdir(args.data_dir)]
 
@@ -47,8 +43,6 @@ def main():
     entire_dataset = SentimentReviews(data_paths, tokenizer)
     train_amount = int(len(entire_dataset)*.8)
     dataset, test_dataset = torch.utils.data.random_split(entire_dataset, [train_amount, len(entire_dataset)-train_amount])
-    dataset_sampler = torch.utils.data.distributed.DistributedSampler(dataset, num_replicas=hvd.size(), rank=hvd.rank())
-    test_dataset_sampler = torch.utils.data.distributed.DistributedSampler(test_dataset, num_replicas=hvd.size(), rank=hvd.rank())
     print("Initialized Dataset")
     
     
@@ -59,16 +53,13 @@ def main():
         intermediate_dimension=config['intermediate_dimension']
     )
     
-#    device = "cuda:0" if torch.cuda.is_available() else "cpu"
+    device = "cuda:0" if torch.cuda.is_available() else "cpu"
 
-    if use_hvd and torch.cuda.is_available():
-        torch.cuda.set_device(hvd.local_rank())
         
-   # if torch.cuda.device_count() > 1:
-    #    print("Let's use", torch.cuda.device_count(), "GPUs!")
-     #   model = torch.nn.DataParallel(model)
+    if torch.cuda.device_count() > 1:
+        print("Let's use", torch.cuda.device_count(), "GPUs!")
+        model = torch.nn.DataParallel(model)
 
-   # model.to(device)
     sparse_params, sparse_named_params = [],[]
     dense_params, dense_named_params = [],[]
     for _name, _data in model.named_parameters():
@@ -86,41 +77,29 @@ def main():
     opt_sparse = torch.optim.SparseAdam(sparse_params, lr=config['learning_rate'])
     opt_dense = torch.optim.Adam(dense_params, lr=config['learning_rate'])
 
-    if use_hvd:
-        hvd.broadcast_parameters(model.state_dict(), root_rank=0)
-
-        hvd.broadcast_optimizer_state(opt_sparse, root_rank=0)
-        hvd.broadcast_optimizer_state(opt_dense, root_rank=0)
-        opt_sparse = hvd.DistributedOptimizer(opt_sparse, named_parameters=sparse_named_params)
-        opt_dense = hvd.DistributedOptimizer(opt_dense, named_parameters=dense_named_params)
    
-    starting_epoch=0
-    if not use_hvd or hvd.rank()==0:
-        starting_epoch = load_model(model, opt_sparse, opt_dense, args.checkpoint_dir)+1
+    starting_epoch = load_model(model, opt_sparse, opt_dense, args.checkpoint_dir)+1
 
     
-    sampler_kwargs = kwargs = {'num_workers': 1, 'pin_memory': True, 'batch_size':config['batch_size']}
+    sampler_kwargs = {'num_workers': 1, 'pin_memory': True, 'batch_size':config['batch_size']}
     for epoch in range(starting_epoch, config['epochs']):
         print(f'Epoch {epoch}')
-        for train_features, train_labels in tqdm(DataLoader(dataset, sampler=dataset_sampler,  **sampler_kwargs)):
+        for train_features, train_labels in tqdm(DataLoader(dataset,  **sampler_kwargs)):
             opt_sparse.zero_grad()
             opt_dense.zero_grad()
             output = model(train_features.cuda())
             loss = loss_fn(output, train_labels.cuda())
             
-            if not use_hvd or hvd.rank()==0:
-                writer.add_scalar("Loss/train", loss, epoch)
+            writer.add_scalar("Loss/train", loss, epoch)
             loss.backward()
             opt_sparse.step()
             opt_dense.step()
         print(f"Loss {loss.cpu()}")
-        if not use_hvd or hvd.rank()==0:
-            save_model(model, opt_sparse, opt_dense, epoch, args.checkpoint_dir)
-        print(f"train accuracy {check_accuracy(DataLoader(dataset, sampler=dataset_sampler, **sampler_kwargs), model, device)}")
-        print(f"test accuracy {check_accuracy(DataLoader(test_dataset, sampler=test_dataset_sampler, **sampler_kwargs), model, device)}")
-    if not use_hvd or hvdrank()==0:
-        writer.flush()
-        writer.close()
+        save_model(model, opt_sparse, opt_dense, epoch, args.checkpoint_dir)
+        print(f"train accuracy {check_accuracy(DataLoader(dataset, **sampler_kwargs), model, device)}")
+        print(f"test accuracy {check_accuracy(DataLoader(test_dataset, **sampler_kwargs), model, device)}")
+    writer.flush()
+    writer.close()
 
 
 if __name__ == '__main__':
