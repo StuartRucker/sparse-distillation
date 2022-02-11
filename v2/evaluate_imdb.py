@@ -54,16 +54,11 @@ def pad_with_zeros(a):
     return a + [0] * (1000 - len(a))
 def prepare_text(s):
     return torch.LongTensor([pad_with_zeros(tokenizer.tokenize(s))])
-print(model(prepare_text("I love this movie")))
-print(model(prepare_text("I hate this movie")))
-
-print(model(prepare_text("This movie was awful i dislike it")))
-print(model(prepare_text("This movie was great i enjoy it")))
 
 #iterate through each batch
 for batch_idx, (data, target) in enumerate(dataloader): 
     #load the batch
-    # data, target = data.to(torch.device('cuda')), target.to(torch.device('cuda'))
+    #data, target = data.to(torch.device('cuda')), target.to(torch.device('cuda'))
     #make predictions
     output = model(data)
     #check if the prediction is correct

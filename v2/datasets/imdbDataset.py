@@ -27,5 +27,5 @@ class ImdbDataset(Dataset):
         while len(feature_list) < self.max_ngrams:
             feature_list.append(self.no_word_token)
         label = [0,1] if 'pos' in self.file_list[idx] else [1,0]
-        return torch.LongTensor(feature_list), torch.FloatTensor(label)
+        return review_contents, torch.LongTensor(feature_list), torch.FloatTensor(label)
 

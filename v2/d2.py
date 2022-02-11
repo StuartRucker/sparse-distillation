@@ -33,7 +33,7 @@ parser.add_argument('--epochs', default=10, type=int, metavar='N',
                     help='number of total epochs to run')
 parser.add_argument('--start-epoch', default=0, type=int, metavar='N',
                     help='manual epoch number (useful on restarts)')
-parser.add_argument('-b', '--batch-size', default=512, type=int,
+parser.add_argument('-b', '--batch-size', default=2048, type=int,
                     metavar='N',
                     help='mini-batch size (default: 512), this is the total '
                         'batch size of all GPUs on the current node when '
@@ -45,7 +45,7 @@ parser.add_argument('--momentum', default=0.9, type=float, metavar='M',
 parser.add_argument('--wd', '--weight-decay', default=1e-4, type=float,
                     metavar='W', help='weight decay (default: 1e-4)',
                     dest='weight_decay')
-parser.add_argument('-p', '--print-freq', default=10, type=int,
+parser.add_argument('-p', '--print-freq', default=1, type=int,
                     metavar='N', help='print frequency (default: 10)')
 parser.add_argument('--resume', default='', type=str, metavar='PATH',
                     help='path to latest checkpoint (default: none)')
@@ -78,7 +78,7 @@ parser.add_argument('--embed-dimension', default=1000, type=int,
                     help='Dimension of each embedding')
 
 
-parser.add_argument('--data_dir', type=str, default='../../et_review_chunks')
+parser.add_argument('--data_dir', type=str, default='../../medium_et_review_chunks')
 parser.add_argument('--ngrams', type=str, default='../data/fast_countvectorizer/top_million_ngrams.txt')
 
 best_acc1 = 0
@@ -112,6 +112,7 @@ def main():
     import os
     if args.world_size == -1 and "SLURM_NPROCS" in os.environ:
         args.world_size = int(os.environ["SLURM_NPROCS"])
+        print(f"World Size {args.world_size}")
         args.rank = int(os.environ["SLURM_PROCID"])
         jobid = os.environ["SLURM_JOBID"]
         hostfile = "dist_url." + jobid  + ".txt"
