@@ -13,11 +13,7 @@ import torch
 from torch.utils.data import Dataset, IterableDataset
 
 
-
-
-
-
-
+  
 
 class ReviewsRaw():
     def __init__(self, filenames, ngram_tokenizer, tokenizer, max_ngrams=1000, no_word_token=0, lines_per_file = 10000):
@@ -31,10 +27,6 @@ class ReviewsRaw():
         #gets review at index
         self.tokenizer = tokenizer
         
-        
-
-        
-        
     def __len__(self):
         return len(self.filenames) * self.lines_per_file
     
@@ -44,13 +36,21 @@ class ReviewsRaw():
 
         with open(self.filenames[file_id]) as f:
             lines = f.readlines()
-            line_id = idx % len(lines)
+            line_id = idx % (len(lines)-1)
 
             review_obj = json.loads(lines[line_id])
             
-            text = review_obj['text']
 
-            return self.transform(text)
+            
+
+            if 'reviewText' not in review_obj or len(review_obj['reviewText']) < 45: #Hacky way to avoid especially short reviews
+                return self.__getitem__(random.randint(0, len(self)-1))
+
+            #TODO fix randrange error
+            try:
+                return self.transform(review_obj['reviewText'])
+            except:
+                return self.__getitem__(random.randint(0, len(self)-1))
     
     def get_allwords(self, text):
         all_words = re.findall( r'(?u)\b\w\w+\b', text.lower())
@@ -58,7 +58,7 @@ class ReviewsRaw():
 
     # replace a random word with [MASK]
     def mask_word(self, words):
-        replace_index = random.randint(0, len(words)-1)
+        replace_index = random.randint(0, min(len(words)-1, 300))
         former_word = words[replace_index]
         words[replace_index] = "[MASK]"
         return former_word
@@ -86,20 +86,23 @@ class ReviewsRaw():
 
         bert_tokens_str = self.tokenizer.tokenize(masked_text)
         
-        masked_index = bert_tokens_str.index("[MASK]")+1
+        masked_index = min(bert_tokens_str.index("[MASK]")+1, 512) #the masked should always be in the first 300 words but just in case
         
         masked_ngrams = self.extract_ngrams(all_words)
         ngram_ids = self.pad(self.ngram_tokenizer.tokenize(masked_ngrams))
         return masked_text, masked_index, ngram_ids
 
 class ReviewBatcher():
-    def __init__(self, raw_dataset, tokenizer, batch_size = 2):
+    def __init__(self, raw_dataset, tokenizer, device='cpu', batch_size = 8):
         self.raw_dataset = raw_dataset
         self.tokenizer = tokenizer
         self.batch_size = batch_size
         self.softmax = torch.nn.Softmax(dim=1)
+        self.device = device
 
         self.model = DistilBertForMaskedLM.from_pretrained("distilbert-base-uncased")
+        self.model.to(self.device)
+        self.model = torch.nn.parallel.DistributedDataParallel(self.model, device_ids = [self.device])
         self.model.eval()
         
     def classifier(self, text, mask_indices):
@@ -108,11 +111,12 @@ class ReviewBatcher():
             model_output = self.model(**tokenized_text)
 
             #Get the logits at the masked index for batch_index
-            logits = self.softmax(model_output.logits)
+            logits = self.softmax(model_output[0])
             used_logits = []
             for i, mask_index in enumerate(mask_indices):
                 used_logits.append(logits[i, mask_index, :])
             return torch.vstack(used_logits)
+
 
     def get_batch(self):
         indices = random_indices = [random.randint(0, len(self.raw_dataset)-1) for i in range(self.batch_size)]
@@ -122,8 +126,8 @@ class ReviewBatcher():
         #unzip this list of tuples
         batch_text, mask_indices, batched_ngrams = zip(*batch_info)
 
-        print(batch_text)
-        return  torch.IntTensor(batched_ngrams), self.classifier(batch_text, mask_indices)
+        
+        return  torch.LongTensor(batched_ngrams), self.classifier(batch_text, mask_indices)
 
 
 
