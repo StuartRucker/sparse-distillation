@@ -45,7 +45,7 @@ config = {
     'embed_dimension': 1000,
     'data_dir': '../../split_reviews/reviews-*',
     'ngram_dir': '../data/fast_countvectorizer/top_ngrams_masked.txt',
-    'batches_per_epoch': 200,
+    'batches_per_epoch': 2000,
 }
 
 def create_optimizers(model):
@@ -139,12 +139,12 @@ def main_worker(gpu, ngpus_per_node, config):
     optimizer_sparse.zero_grad()
     
     #tensorboard logging
-    writer = SummaryWriter() if gpu == 0 else None
+    writer = SummaryWriter() if config['rank'] == 0 else None
 
     # distributed_tqdm = tqdm.tqdm if gpu == 0 else lambda x: x
 
     for epoch in range(config['start_epoch'], config['epochs']):
-        if gpu == 0:
+        if config['rank'] == 0:
             print("Epoch {}/{}".format(epoch, config['epochs']))
         
         for batch_index in range(config['batches_per_epoch']):
@@ -168,18 +168,18 @@ def main_worker(gpu, ngpus_per_node, config):
 
             ended_step = time.time()
 
-            if gpu == 0:
+            if config['rank'] == 0:
                 writer.add_scalar("Loss/train", loss, epoch * config['batches_per_epoch'] + batch_index)
                 writer.add_scalar("loadingTime", ended_loading-start, epoch * config['batches_per_epoch'] + batch_index)
                 writer.add_scalar("backpropTime", ended_step-ended_loading, epoch * config['batches_per_epoch'] + batch_index)
         
         #save model
-        if gpu == 0:
+        if config['rank'] == 0:
             os.makedirs("checkpoints", exist_ok=True)
             checkpoint_path =  f"checkpoints/model-{epoch}.checkpoint"
             torch.save(model.state_dict(), checkpoint_path)
 
-    if gpu == 0:
+    if config['rank'] == 0:
         writer.flush()
     cleanup()
 
