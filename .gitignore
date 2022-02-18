@@ -1,2 +1,5 @@
 data/reviews/reviews.txt
 __pycache__/
+*.pyc
+cached/
+runs/

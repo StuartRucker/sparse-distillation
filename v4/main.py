@@ -30,7 +30,7 @@ def main(args):
 
 
     model = DAN()
-    embeddings = torch.nn.Embedding(len(tokenizer.countvectorizer.get_feature_names_out()), 1000, sparse=True)
+    embeddings = torch.nn.Embedding(len(tokenizer.countvectorizer.get_feature_names()), 1000, sparse=True)
     if args.kd:
         print("TODO: Fine tune teacher model")
         pass
