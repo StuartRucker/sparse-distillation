@@ -9,6 +9,7 @@ import torch.nn.functional as F
 import tqdm
 from config import config
 import os
+import time
 
 from data import get_ft_dataset
 
@@ -54,17 +55,16 @@ def save_model(model, embeddings, run_name, epoch):
     torch.save({'model': model.state_dict(), 'embeddings': embeddings.weight}, filepath)
 
 
-def eval_model(model, test_loader):
+def eval_model(model, data_loader):
     model.eval()
     correct = 0
     total = 0
     with torch.no_grad():
-        for data, target in test_loader:
+        for data, target in data_loader:
             output = model(data)
             _, predicted = torch.max(output.data, 1)
-            _, target_class = torch.max(target, 1)
             total += target.size(0)
-            correct += (predicted == target_class).sum().item()
+            correct += (predicted == target).sum().item()
     return correct/total
 
 def train_model(model, embeddings, tokenizer, d_train, d_test, mini=False, run_name=''):
@@ -87,7 +87,9 @@ def train_model(model, embeddings, tokenizer, d_train, d_test, mini=False, run_n
     test_loader = DataLoader(test_dataset, batch_size=config['batch_size'], shuffle=True)
 
     model.train()
+    criterion = torch.nn.CrossEntropyLoss()
     for epoch in range(config['epochs']):
+        start_time_epoch = time.time()
         for batch_idx, (data, target) in tqdm.tqdm(enumerate(train_loader), total=len(train_loader)):
             data, target = data.to(device), target.to(device)
 
@@ -95,8 +97,9 @@ def train_model(model, embeddings, tokenizer, d_train, d_test, mini=False, run_n
             optimizer_sparse.zero_grad()
             
             output = model(data)
-    
-            loss = F.cross_entropy(output, target)
+
+
+            loss = criterion(output, target.flatten())
             
             
             loss.backward()
@@ -107,8 +110,12 @@ def train_model(model, embeddings, tokenizer, d_train, d_test, mini=False, run_n
             if batch_idx % 10 == 0:
                 writer.add_scalar('Loss/train', loss.item(), epoch*len(train_loader)+batch_idx)
         
-        writer.add_scalar('Accuracy/train', loss.item(), epoch*len(train_loader)+batch_idx)
-        writer.add_scalar('Accuracy/test', loss.item(), epoch*len(test_loader)+batch_idx)
+        writer.add_scalar('Time/epoch', time.time()-start_time_epoch, epoch)
+        eval_start_time = time.time()
+        writer.add_scalar('Accuracy/train', eval_model(model, train_loader), epoch*len(train_loader)+batch_idx)
+        writer.add_scalar('Accuracy/test', eval_model(model, test_loader), epoch*len(test_loader)+batch_idx)
+        writer.add_scalar('Time/eval', time.time()-eval_start_time, epoch)
+        
         
         print(f"Epoch: {epoch} Loss: {loss}")
 
