@@ -55,12 +55,13 @@ def save_model(model, embeddings, run_name, epoch):
     torch.save({'model': model.state_dict(), 'embeddings': embeddings.weight}, filepath)
 
 
-def eval_model(model, data_loader):
+def eval_model(model, data_loader, device):
     model.eval()
     correct = 0
     total = 0
     with torch.no_grad():
         for data, target in data_loader:
+            data, target = data.to(device), target.to(device)
             output = model(data)
             _, predicted = torch.max(output.data, 1)
             total += target.size(0)
@@ -71,7 +72,7 @@ def train_model(model, embeddings, tokenizer, d_train, d_test, mini=False, run_n
 
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     model.to(device)
-    
+    embeddings.to(device)    
     writer = SummaryWriter(comment=run_name)
 
     load_model(model, embeddings, run_name)
@@ -112,8 +113,8 @@ def train_model(model, embeddings, tokenizer, d_train, d_test, mini=False, run_n
         
         writer.add_scalar('Time/epoch', time.time()-start_time_epoch, epoch)
         eval_start_time = time.time()
-        writer.add_scalar('Accuracy/train', eval_model(model, train_loader), epoch*len(train_loader)+batch_idx)
-        writer.add_scalar('Accuracy/test', eval_model(model, test_loader), epoch*len(test_loader)+batch_idx)
+        writer.add_scalar('Accuracy/train', eval_model(model, train_loader, device), epoch*len(train_loader)+batch_idx)
+        writer.add_scalar('Accuracy/test', eval_model(model, test_loader, device), epoch*len(test_loader)+batch_idx)
         writer.add_scalar('Time/eval', time.time()-eval_start_time, epoch)
         
         

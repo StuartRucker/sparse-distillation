@@ -77,7 +77,7 @@ class ImdbDataset(torch.utils.data.Dataset):
         feature_list = []
         for i,j,v in zip(cx.row, cx.col, cx.data):
             feature_list += [j for _ in range(v)]
-        feature_list = torch.LongTensor(feature_list)
+        feature_list = torch.LongTensor(feature_list).cuda()
         mean_embedding = torch.mean(self.torch_embedding(feature_list), dim=0)
         label = [1] if 'pos' in self.file_list[idx] else [0]
         return mean_embedding, torch.LongTensor(label)
