@@ -41,8 +41,10 @@ def load_model(model, embeddings, run_name):
         loaded = torch.load(filepath)
         model.load_state_dict(loaded['model'])
         embeddings.weight = loaded['embeddings']
+        return int(files[-1].split('.')[0])
     else:
         print("Starting Training From Scratch...")
+        return -1
 
 
 def save_model(model, embeddings, run_name, epoch):
@@ -65,7 +67,7 @@ def eval_model(model, data_loader, device):
             output = model(data)
             _, predicted = torch.max(output.data, 1)
             total += target.size(0)
-            correct += (predicted == target).sum().item()
+            correct += (predicted == target.flatten()).sum().item()
     return correct/total
 
 def train_model(model, embeddings, tokenizer, d_train, d_test, mini=False, run_name=''):
@@ -75,7 +77,7 @@ def train_model(model, embeddings, tokenizer, d_train, d_test, mini=False, run_n
     embeddings.to(device)    
     writer = SummaryWriter(comment=run_name)
 
-    load_model(model, embeddings, run_name)
+    start_epoch = load_model(model, embeddings, run_name)
 
     
     optimizer = torch.optim.Adam(model.parameters(), lr=config['learning_rate'])
@@ -89,7 +91,7 @@ def train_model(model, embeddings, tokenizer, d_train, d_test, mini=False, run_n
 
     model.train()
     criterion = torch.nn.CrossEntropyLoss()
-    for epoch in range(config['epochs']):
+    for epoch in range(start_epoch+1, start_epoch+config['epochs']+1):
         start_time_epoch = time.time()
         for batch_idx, (data, target) in tqdm.tqdm(enumerate(train_loader), total=len(train_loader)):
             data, target = data.to(device), target.to(device)
