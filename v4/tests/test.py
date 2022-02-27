@@ -2,11 +2,13 @@ import sys
 import os
 import unittest
 import torch
+from transformers import BertTokenizer
+
 #append parent directory to sys.path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
-from data import get_content, get_ft_dataset
+from data import get_content, get_ft_dataset, get_pretrain_dataset
 from tokenizer import Tokenizer
 
 #Create suite of unit tests for Tokenizer
@@ -18,6 +20,34 @@ class Test(unittest.TestCase):
         tokenizer = Tokenizer("Amazon", "IMDB_train", max_features=100, mini=True)
         assert len(tokenizer.countvectorizer.get_feature_names()) > 20
     
+    def test_mask_tokenizer(self):
+        #test that tokenizer can be created
+        
+        tokenizer = Tokenizer(None, "IMDB_train", max_features=100, mini=True)
+        original_vocab_length = len(tokenizer.countvectorizer.vocabulary_)
+
+        bert_tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
+        tokenized_text = bert_tokenizer.tokenize("I love this movie")
+        tokenized_text[2] = "[MASK]"
+        transformed = tokenizer.transform([tokenized_text], mask=True)
+        final_vocab_length = len(tokenizer.countvectorizer.vocabulary_)
+        assert final_vocab_length > original_vocab_length, "Vocabulary should have been expanded"
+
+        words = []
+        for i in range(transformed.shape[0]):
+            for j in range(transformed.shape[1]):
+                if transformed[i,j] > 0:
+                    words.append(tokenizer.countvectorizer.get_feature_names_out()[j])
+
+        assert any(['[MASK]' in word for word in words]), "Tokenizer incorporated mask token"
+    
+    def test_pretrain_dataset(self):
+        tokenizer = Tokenizer(None, "IMDB_train", max_features=100, mini=True)
+        dataset = get_pretrain_dataset("IMDB_train", tokenizer, mini=True)
+        assert len(dataset) > 5
+        for x, y in dataset:
+            print(y)
+
     def test_dataset(self):
         #test that tokenizer can be created
         tokenizer = Tokenizer(None, "IMDB_train", max_features=100, mini=True)

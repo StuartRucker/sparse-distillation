@@ -14,7 +14,9 @@ class Tokenizer:
         self.max_features = max_features
         self.mini = mini
 
-        
+        self.mask_mode = False
+        self.mask_vocabulary = {}
+
         self.path = os.path.join(os.path.dirname(__file__), "cached/tokenizers", self.name)
         
         #if this file exists, read it
@@ -25,22 +27,64 @@ class Tokenizer:
         else:
             print("Computing tokenizer from scratch...")
             self.create_countvectorizer()
-    
+        self.normal_vocabulary = self.countvectorizer.vocabulary_
+
+    def __len__(self):
+        return len(self.countvectorizer.vocabulary_)
+
     def create_countvectorizer(self):
         bert_tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
-        self.countvectorizer = CountVectorizer(ngram_range=(1, 4), token_pattern=None,
-                 max_features=self.max_features, input='content', tokenizer=bert_tokenizer.tokenize, )
+
+        # tokenize_wrapper = lambda x: bert_tokenizer.tokenize(x)[:512]
+        self.countvectorizer = CountVectorizer(ngram_range=(1, 4), max_features=self.max_features,
+                input='content', tokenizer=bert_tokenizer.tokenize, lowercase=False)
         
+
         content = get_content(self.corpus, self.mini) + get_content(self.d, self.mini)
         self.countvectorizer.fit(content)
         
         #pickle the countvectorizer
         with open(self.path, "wb") as f:
             pickle.dump(self.countvectorizer, f)
-    def transform(self, text):
-        return self.countvectorizer.transform(text)
+    def generate_mask_vocabulary(self):
+        print("Generating mask vocabulary...")
+        self.mask_vocabulary = {}
+        next_index = len(self.countvectorizer.vocabulary_)
 
-        
+        for ngram, index in self.countvectorizer.vocabulary_.items():
+            words = ngram.split()
+            if len(words) < 4:
+                for i in range(len(words)):
+                    #replace ith word with <MASK>
+                    new_ngram = " ".join(words[:i] + ["[MASK]"] + words[i+1:])
+                    if new_ngram not in self.mask_vocabulary:
+                        self.mask_vocabulary[new_ngram] = next_index
+                        next_index += 1
+            self.mask_vocabulary[ngram] = index
+
+    def transform(self, text, mask=False):
+        # if mask mode expects the text to be tokenized
+        if mask and not self.mask_mode:
+            if not self.mask_vocabulary:
+                self.generate_mask_vocabulary()
+            self.normal_vocabulary = self.countvectorizer.vocabulary_
+            self.normal_tokenizer = self.countvectorizer.tokenizer
+            self.countvectorizer.tokenizer = lambda x: x
+            self.countvectorizer.vocabulary_ = self.mask_vocabulary
+            
+            self.mask_mode = True
+        elif not mask and self.mask_mode:
+            self.countvectorizer.vocabulary_ = self.normal_vocabulary
+            self.countvectorizer.tokenizer = self.normal_tokenizer
+            self.mask_mode = False
+
+        return self.countvectorizer.transform(text)
+    
+    # returns the vocabulary size of the hugging face BertTokenizer
+    def get_bert_vocabulary_size(self):
+        bert_tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
+        return len(bert_tokenizer.vocab)
+
         
     # tokenizer.encode_plus(text, add_special_tokens = True,    truncation = True, padding = "max_length", return_attention_mask = True, return_tensors = "pt")
 
