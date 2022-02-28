@@ -26,7 +26,8 @@ class Test(unittest.TestCase):
         tokenizer = Tokenizer(None, "IMDB_train", max_features=100, mini=True)
         original_vocab_length = len(tokenizer.countvectorizer.vocabulary_)
 
-        bert_tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
+        tokenizer_path = os.path.join(os.path.dirname(__file__), "../../data/bert_tokenizer")
+        bert_tokenizer = BertTokenizer.from_pretrained(tokenizer_path)
         tokenized_text = bert_tokenizer.tokenize("I love this movie")
         tokenized_text[2] = "[MASK]"
         transformed = tokenizer.transform([tokenized_text], mask=True)

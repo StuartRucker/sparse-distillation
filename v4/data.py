@@ -111,7 +111,8 @@ class MaskImdbDataset(torch.utils.data.Dataset):
     def __init__(self, file_list, tokenizer):
         self.file_list = file_list
         self.tokenizer = tokenizer
-        self.bert_tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
+        tokenizer_path = os.path.join(os.path.dirname(__file__), "../data/bert_tokenizer")
+        self.bert_tokenizer = BertTokenizer.from_pretrained(tokenizer_path)
 
     def __len__(self):
         return len(self.file_list)

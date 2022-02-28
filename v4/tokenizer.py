@@ -33,7 +33,9 @@ class Tokenizer:
         return len(self.countvectorizer.vocabulary_)
 
     def create_countvectorizer(self):
-        bert_tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
+        #join path of this file to "../data/bert_tokenizer"
+        tokenizer_path = os.path.join(os.path.dirname(__file__), "../data/bert_tokenizer")
+        bert_tokenizer = BertTokenizer.from_pretrained(tokenizer_path)
 
         # tokenize_wrapper = lambda x: bert_tokenizer.tokenize(x)[:512]
         self.countvectorizer = CountVectorizer(ngram_range=(1, 4), max_features=self.max_features,
@@ -82,7 +84,8 @@ class Tokenizer:
     
     # returns the vocabulary size of the hugging face BertTokenizer
     def get_bert_vocabulary_size(self):
-        bert_tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
+        tokenizer_path = os.path.join(os.path.dirname(__file__), "../data/bert_tokenizer")
+        bert_tokenizer = BertTokenizer.from_pretrained(tokenizer_path)
         return len(bert_tokenizer.vocab)
 
         
