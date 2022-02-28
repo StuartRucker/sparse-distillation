@@ -88,18 +88,18 @@ def train_mask_model(mask_model, tokenizer, corpus, mini=False, run_name='unname
     
     dense_params = [param for name, param in mask_model.named_parameters() if 'embed' not in name.lower()]
     sparse_params = [param for name, param in mask_model.named_parameters() if 'embed'  in name.lower()]
-    optimizer = torch.optim.Adam(dense_params, lr=config['learning_rate'])
-    optimizer_sparse = torch.optim.SparseAdam( sparse_params, lr=config['learning_rate'])
+    optimizer = torch.optim.Adam(dense_params, lr=config['pretrain_learning_rate'])
+    optimizer_sparse = torch.optim.SparseAdam( sparse_params, lr=config['pretrain_learning_rate'])
 
     print("corpusss", corpus)
     train_dataset = get_pretrain_dataset(corpus, tokenizer, mini)
-    train_loader = DataLoader(train_dataset, batch_size=config['batch_size'], shuffle=True)
+    train_loader = DataLoader(train_dataset, batch_size=config['pretrain_batch_size'], shuffle=True)
 
     
     mask_model.train()
     criterion = torch.nn.CrossEntropyLoss()
 
-    for epoch in range(start_epoch+1, min(start_epoch+config['epochs']+1, config['max_epochs']+1)):
+    for epoch in range(start_epoch+1, min(start_epoch+config['pretrain_epochs']+1, config['pretrain_max_epochs']+1)):
         
         for batch_idx, (data, target) in enumerate(train_loader):
             data, target = data.to(device), target.to(device)
@@ -137,20 +137,20 @@ def train_model(model, tokenizer, d_train, d_test, mini=False, run_name='unnamed
     
     dense_params = [param for name, param in model.named_parameters() if 'embed' not in name.lower()]
     sparse_params = [param for name, param in model.named_parameters() if 'embed'  in name.lower()]
-    optimizer = torch.optim.Adam(dense_params, lr=config['learning_rate'])
-    optimizer_sparse = torch.optim.SparseAdam( sparse_params, lr=config['learning_rate'])
+    optimizer = torch.optim.Adam(dense_params, lr=config['finetune_learning_rate'])
+    optimizer_sparse = torch.optim.SparseAdam( sparse_params, lr=config['finetune_learning_rate'])
 
     train_dataset = get_ft_dataset(d_train, tokenizer, mini)
-    train_loader = DataLoader(train_dataset, batch_size=config['batch_size'], shuffle=True)
+    train_loader = DataLoader(train_dataset, batch_size=config['finetune_batch_size'], shuffle=True)
 
     test_dataset = get_ft_dataset(d_test, tokenizer, mini)
-    test_loader = DataLoader(test_dataset, batch_size=config['batch_size'], shuffle=True)
+    test_loader = DataLoader(test_dataset, batch_size=config['finetune_batch_size'], shuffle=True)
 
     model.train()
     criterion = torch.nn.CrossEntropyLoss()
 
 
-    for epoch in range(start_epoch+1, min(start_epoch+config['epochs']+1, config['max_epochs']+1)):
+    for epoch in range(start_epoch+1, min(start_epoch+config['finetune_epochs']+1, config['finetune_max_epochs']+1)):
         start_time_epoch = time.time()
         for batch_idx, (data, target) in enumerate(train_loader):
             data, target = data.to(device), target.to(device)
