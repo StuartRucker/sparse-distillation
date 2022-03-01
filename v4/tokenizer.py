@@ -4,6 +4,7 @@ import os
 from sklearn.feature_extraction.text import CountVectorizer
 from data import get_content
 import pickle
+from itertools import chain
 
 #create a class Tokenizer
 class Tokenizer:
@@ -42,7 +43,7 @@ class Tokenizer:
                 input='content', tokenizer=bert_tokenizer.tokenize, lowercase=False)
         
 
-        content = get_content(self.corpus, self.mini) + get_content(self.d, self.mini)
+        content = chain(get_content(self.corpus, self.mini),get_content(self.d, self.mini))
         self.countvectorizer.fit(content)
         
         #pickle the countvectorizer
@@ -63,7 +64,8 @@ class Tokenizer:
                         self.mask_vocabulary[new_ngram] = next_index
                         next_index += 1
             self.mask_vocabulary[ngram] = index
-
+    def skip_func(self, x):
+        return x
     def transform(self, text, mask=False):
         # if mask mode expects the text to be tokenized
         if mask and not self.mask_mode:
@@ -71,7 +73,7 @@ class Tokenizer:
                 self.generate_mask_vocabulary()
             self.normal_vocabulary = self.countvectorizer.vocabulary_
             self.normal_tokenizer = self.countvectorizer.tokenizer
-            self.countvectorizer.tokenizer = lambda x: x
+            self.countvectorizer.tokenizer = self.skip_func
             self.countvectorizer.vocabulary_ = self.mask_vocabulary
             
             self.mask_mode = True

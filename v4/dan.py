@@ -83,7 +83,7 @@ def train_mask_model(mask_model, tokenizer, corpus, mini=False, run_name='unname
     mask_model.to(device)
     
 
-    start_epoch = load_model(mask_model, run_name) if not from_scratch else -1
+    start_iteration_cnt = load_model(mask_model, run_name) if not from_scratch else -1
 
     
     dense_params = [param for name, param in mask_model.named_parameters() if 'embed' not in name.lower()]
@@ -91,17 +91,22 @@ def train_mask_model(mask_model, tokenizer, corpus, mini=False, run_name='unname
     optimizer = torch.optim.Adam(dense_params, lr=config['pretrain_learning_rate'])
     optimizer_sparse = torch.optim.SparseAdam( sparse_params, lr=config['pretrain_learning_rate'])
 
-    print("corpusss", corpus)
+    print("Corpus: ", corpus)
     train_dataset = get_pretrain_dataset(corpus, tokenizer, mini)
-    train_loader = DataLoader(train_dataset, batch_size=config['pretrain_batch_size'], shuffle=True)
+    train_loader = DataLoader(train_dataset, batch_size=config['pretrain_batch_size'], shuffle=True, num_workers=4, pin_memory=True)
 
     
     mask_model.train()
     criterion = torch.nn.CrossEntropyLoss()
 
-    for epoch in range(start_epoch+1, min(start_epoch+config['pretrain_epochs']+1, config['pretrain_max_epochs']+1)):
-        
-        for batch_idx, (data, target) in enumerate(train_loader):
+    iteration_cnt = start_iteration_cnt
+    for epoch in range(config['pretrain_max_epochs']+1):
+
+
+        for data, target in train_loader:
+            if iteration_cnt >= config['pretrain_max_iterations']:
+                return
+            
             data, target = data.to(device), target.to(device)
 
             optimizer.zero_grad()
@@ -112,18 +117,21 @@ def train_mask_model(mask_model, tokenizer, corpus, mini=False, run_name='unname
 
             loss = criterion(output, target.flatten())
             
-            
             loss.backward()
             optimizer.step()
             optimizer_sparse.step()
+            
+            if iteration_cnt % config['pretrain_log_every'] == 0:
+                wandb.log({'Pretrain/Loss/train': loss.item(), 'Pretrain/iteration': iteration_cnt})
+                print("Iteration: ", iteration_cnt, " Loss: ", loss.item())
+                
+            if iteration_cnt % config['pretrain_save_model_every'] == 0:
+                save_model(mask_model, run_name, iteration_cnt)
+            
+            iteration_cnt += 1
 
-
-            if batch_idx % 10 == 0:
-                wandb.log({'Pretrain/Loss/train': loss.item(), 'Pretrain/iteration': epoch*len(train_loader)+batch_idx})
+    
         
-        print(f"Epoch: {epoch} Loss: {loss}")
-        #save the model
-        save_model(mask_model, run_name, epoch)
 
 
 
@@ -141,10 +149,10 @@ def train_model(model, tokenizer, d_train, d_test, mini=False, run_name='unnamed
     optimizer_sparse = torch.optim.SparseAdam( sparse_params, lr=config['finetune_learning_rate'])
 
     train_dataset = get_ft_dataset(d_train, tokenizer, mini)
-    train_loader = DataLoader(train_dataset, batch_size=config['finetune_batch_size'], shuffle=True)
+    train_loader = DataLoader(train_dataset, batch_size=config['finetune_batch_size'], shuffle=True, num_workers=4, pin_memory=True)
 
     test_dataset = get_ft_dataset(d_test, tokenizer, mini)
-    test_loader = DataLoader(test_dataset, batch_size=config['finetune_batch_size'], shuffle=True)
+    test_loader = DataLoader(test_dataset, batch_size=config['finetune_batch_size'], shuffle=True, num_workers=4, pin_memory=True)
 
     model.train()
     criterion = torch.nn.CrossEntropyLoss()

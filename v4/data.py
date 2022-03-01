@@ -7,7 +7,7 @@ import torch
 import numpy as np
 #import BertTokenizer
 from transformers import BertTokenizer 
-
+from datasets import load_from_disk
 
 def get_amazon_content(path):
     #read the file from path
@@ -34,6 +34,23 @@ def get_imdb_content(mini, train=True):
     #returns a list of strings for each given dataset name
 
 
+def get_wikibooks_content(mini=False):
+    dataset_books = load_from_disk(os.path.expanduser("~/hf_datasets/bookcorpus"))['train']
+    dataset_wiki = load_from_disk(os.path.expanduser("~/hf_datasets/wikipedia"))['train']
+    
+    for i in range(len(dataset_books)):
+        yield dataset_books[i]['text']
+        if mini and i > 10:
+            break
+    for i in range(len(dataset_wiki)):
+        yield dataset_wiki[i]['text']
+        if mini and i > 10:
+            break
+    # for i in range(len(dataset_imdb)):
+    #     yield dataset_imdb[i]['text'].strip().replace('<br />', '\n')
+    #     if mini and i > 10:
+    #         break
+
 #returns a list of strings for each given dataset name
 def get_content(dataset_name, mini=False):
     if not dataset_name:
@@ -45,6 +62,8 @@ def get_content(dataset_name, mini=False):
         return get_imdb_content(mini, train=True)
     elif dataset_name == 'IMDB_test':
         return get_imdb_content(mini, train=False)
+    elif dataset_name == 'wikibooks':
+        return get_wikibooks_content(mini)
     else:
         raise ValueError('Invalid dataset name')
 
@@ -58,6 +77,8 @@ def get_pretrain_dataset(dataset_name, tokenizer, mini=False):
             files = files[:100]
 
         return MaskImdbDataset(files, tokenizer)
+    elif dataset_name == 'wikibooks':
+        return MaskWikiDataset(tokenizer, mini=mini)
     else:
         raise ValueError(f'Invalid dataset name {dataset_name}')
 
@@ -120,6 +141,59 @@ class MaskImdbDataset(torch.utils.data.Dataset):
     def __getitem__(self, idx):
         with open(self.file_list[idx], 'r') as f:
             content = f.read().strip().replace('<br />', '\n')
+        tokenized_content = self.bert_tokenizer.tokenize(content)[:512]
+        #select a random token to mask
+        mask_idx = random.randint(0, len(tokenized_content) - 1)
+        masked_word = tokenized_content[mask_idx]
+        tokenized_content[mask_idx] = '[MASK]'
+
+        # get the bert index of the masked_word
+        masked_word_idx = self.bert_tokenizer.convert_tokens_to_ids(masked_word)
+
+
+        cx = self.tokenizer.transform([tokenized_content], mask=True).tocoo()
+        
+        feature_list = []
+        for i,j,v in zip(cx.row, cx.col, cx.data):
+            feature_list += [j for _ in range(v)]
+        
+
+        #if feature list is longer than 2000, randomly sample 2000 elements frmo it
+        if len(feature_list) > 2000:
+            feature_list = random.sample(feature_list, 2000)
+        feature_list = np.array(feature_list)
+        #if feature list is shorter than 2000, pad it with a value 1 greater than the size of the vocabulary
+        if len(feature_list) < 2000:
+            feature_list = np.pad(feature_list, (0, 2000 - len(feature_list)), 'constant', constant_values= len(self.tokenizer.countvectorizer.vocabulary_))
+        return torch.LongTensor(feature_list), torch.LongTensor([masked_word_idx])
+
+
+# TODO, use inheritance to combine This and MaskImdbDataset
+class MaskWikiDataset(torch.utils.data.Dataset):
+    def __init__(self, tokenizer, mini=False):
+        self.tokenizer = tokenizer
+        tokenizer_path = os.path.join(os.path.dirname(__file__), "../data/bert_tokenizer")
+        self.bert_tokenizer = BertTokenizer.from_pretrained(tokenizer_path)
+
+        self.dataset_books = load_from_disk(os.path.expanduser("~/hf_datasets/bookcorpus"))['train']
+        self.dataset_wiki = load_from_disk(os.path.expanduser("~/hf_datasets/wikipedia"))['train']
+        
+        self.mini = mini
+
+        self.length = len(self.dataset_books) + len(self.dataset_wiki)
+        print("Dataset length: ", self.length)
+    def __len__(self):
+        return self.length
+
+    def __getitem__(self, idx):
+        
+        if self.mini:
+            idx = idx % 50
+        if idx < len(self.dataset_books):
+            content = self.dataset_books[idx]['text']
+        else:
+            content = self.dataset_wiki[idx - len(self.dataset_books)]['text']
+
         tokenized_content = self.bert_tokenizer.tokenize(content)[:512]
         #select a random token to mask
         mask_idx = random.randint(0, len(tokenized_content) - 1)

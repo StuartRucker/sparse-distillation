@@ -71,6 +71,11 @@ class Test(unittest.TestCase):
         assert len(content) > 50
         content = get_content("IMDB_test", mini=True)
         assert len(content) > 50
+    def test_wikibooks(self):
+        content = get_content("wikibooks", mini=True)
+        for c in content:
+            print(c)
+        
 
 
         

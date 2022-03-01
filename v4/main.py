@@ -49,6 +49,7 @@ def main(args):
     
     saved_weights = None
     if args.pretrain:
+        print("Beginning Pretraining...")
         tokenizer.transform(["[MASK]"], mask=True) # put the tokenizer in mask mode
         mask_model = DAN(num_classes=tokenizer.get_bert_vocabulary_size(), intermediate_dimension=config['pretrain_intermediate_dimension'], 
                 num_embeddings=len(tokenizer)+1)
