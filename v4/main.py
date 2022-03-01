@@ -46,11 +46,12 @@ def main(args):
         config = config,
     )
 
-    model = DAN(num_embeddings=len(tokenizer)+1)
     
+    saved_weights = None
     if args.pretrain:
         tokenizer.transform(["[MASK]"], mask=True) # put the tokenizer in mask mode
-        mask_model = DAN(num_classes=tokenizer.get_bert_vocabulary_size(), num_embeddings=len(tokenizer)+1)
+        mask_model = DAN(num_classes=tokenizer.get_bert_vocabulary_size(), intermediate_dimension=config['pretrain_intermediate_dimension'], 
+                num_embeddings=len(tokenizer)+1)
         train_mask_model(mask_model, tokenizer, args.corpus, mini=args.mini, run_name='pretrain:'+run_name, from_scratch=args.from_scratch)
         
         #transfer weights from mask model to model
@@ -59,9 +60,12 @@ def main(args):
         
         print("Moving Model weights to later model...")
         tokenizer.transform(["[MASK]"], mask=False) # put the tokenizer in mnormal mode
-        model.embed.weight.data = torch.cat([embedding_weights[:len(tokenizer)], embedding_weights[[-1]]], dim=0)
+        saved_weights = torch.cat([embedding_weights[:len(tokenizer)], embedding_weights[[-1]]], dim=0)
+        del mask_model
         
-        
+    model = DAN(num_embeddings=len(tokenizer)+1)
+    if saved_weights is not None:
+        model.embed.weight.data = saved_weights
     
     if args.kd:
         print("TODO: Fine tune teacher model")
