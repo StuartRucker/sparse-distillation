@@ -25,7 +25,15 @@ def time():
     now = datetime.now() # current date and time
     return now.strftime("%H:%M:%S")
 
+def fix_print():
+    import builtins
+    _orig_print = builtins.print
+
+    def print(*args, **kwargs):
+        _orig_print(*args, flush=True, **kwargs)
+    builtins.print = print
 def main(args):
+    fix_print()
 
     run_name = f'[Corpus:{args.corpus} Dtrain:{args.d_train} pretrain:{args.pretrain} kd:{args.kd} fd:{args.ft} mini:{args.mini}]'
     print(f'Running... {run_name}')
