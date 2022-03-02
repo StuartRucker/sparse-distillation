@@ -34,7 +34,7 @@ def get_imdb_content(mini, train=True):
     #returns a list of strings for each given dataset name
 
 
-def get_wikibooks_content(mini=False):
+def get_wikibooks_content(mini=False, limit_wiki=100000, limit_books=500000):
     dataset_books = load_from_disk(os.path.expanduser("~/hf_datasets/bookcorpus"))['train']
     dataset_wiki = load_from_disk(os.path.expanduser("~/hf_datasets/wikipedia"))['train']
     
@@ -42,9 +42,13 @@ def get_wikibooks_content(mini=False):
         yield dataset_books[i]['text']
         if mini and i > 10:
             break
+        if i > limit_books:
+            break
     for i in range(len(dataset_wiki)):
         yield dataset_wiki[i]['text']
         if mini and i > 10:
+            break
+        if i > limit_wiki:
             break
     # for i in range(len(dataset_imdb)):
     #     yield dataset_imdb[i]['text'].strip().replace('<br />', '\n')
