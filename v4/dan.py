@@ -29,8 +29,8 @@ class CBOW(nn.Module):
         self.softmax = nn.Softmax(dim=1)
 
     def forward(self, data):
-        before_words = data[0]
-        after_words = data[1]
+        before_words = data[:,0]
+        after_words = data[:,1]
 
         embed_before =  self.embed(before_words)
         embed_after =  self.embed(after_words)
@@ -134,7 +134,6 @@ def train_mask_model(mask_model, pretrain_model, tokenizer, corpus, mini=False, 
             optimizer_sparse.zero_grad()
             
             output = mask_model(data)
-
 
             loss = criterion(output, target.flatten())
             
