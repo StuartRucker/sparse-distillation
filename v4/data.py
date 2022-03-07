@@ -72,19 +72,27 @@ def get_content(dataset_name, mini=False):
         raise ValueError('Invalid dataset name')
 
 
-def get_pretrain_dataset(dataset_name, tokenizer, mini=False):
-    if dataset_name.startswith('IMDB'):
-        path = os.path.join(os.path.dirname(__file__), "../data/imdb/train/*/*.txt" if 'train' in dataset_name else "../data/imdb/test/*/*.txt")
-        files = glob.glob(path)
-        if mini:
-            random.shuffle(files)
-            files = files[:100]
+def get_pretrain_dataset(dataset_name, tokenizer, mini=False, mode='DAN'):
+    if mode == 'DAN':
+        if dataset_name.startswith('IMDB'):
+            path = os.path.join(os.path.dirname(__file__), "../data/imdb/train/*/*.txt" if 'train' in dataset_name else "../data/imdb/test/*/*.txt")
+            files = glob.glob(path)
+            if mini:
+                random.shuffle(files)
+                files = files[:100]
 
-        return MaskImdbDataset(files, tokenizer)
-    elif dataset_name == 'wikibooks':
-        return MaskWikiDataset(tokenizer, mini=mini)
+            return MaskImdbDataset(files, tokenizer)
+        elif dataset_name == 'wikibooks':
+            return MaskWikiDataset(tokenizer, mini=mini)
+        else:
+            raise ValueError(f'Invalid dataset name {dataset_name}')
+    elif mode == 'CBOW':
+        if dataset_name == 'wikibooks':
+            return CBOWWikiDataset(tokenizer, mini=mini)
+        else:
+            raise ValueError(f'Invalid CBOW dataset name {dataset_name}')
     else:
-        raise ValueError(f'Invalid dataset name {dataset_name}')
+        raise ValueError(f'Invalid pretrain mode {mode}')
 
 def get_ft_dataset(dataset_name, tokenizer, mini=False):
     if dataset_name.startswith('IMDB'):
@@ -98,6 +106,21 @@ def get_ft_dataset(dataset_name, tokenizer, mini=False):
     else:
         raise ValueError(f'Invalid dataset name {dataset_name}')
 
+
+def get_features(tokenizer, phase, pad_value, pad_dim=2000, mask=False):
+        cx = tokenizer.transform([phase], mask=mask).tocoo()
+        feature_list = []
+        for i,j,v in zip(cx.row, cx.col, cx.data):
+            feature_list += [j for _ in range(v)]
+        
+        #if feature list is longer than 2000, randomly sample 2000 elements frmo it
+        if len(feature_list) > pad_dim:
+            feature_list = random.sample(feature_list, pad_dim)
+        feature_list = np.array(feature_list)
+        #if feature list is shorter than 2000, pad it with a value 1 greater than the size of the vocabulary
+        if len(feature_list) < pad_dim:
+            feature_list = np.pad(feature_list, (0, pad_dim - len(feature_list)), 'constant', constant_values= pad_value)
+        return feature_list
 
 class ImdbDataset(torch.utils.data.Dataset):
     def __init__(self, file_list, trained_vectorizer):
@@ -150,6 +173,7 @@ class MaskImdbDataset(torch.utils.data.Dataset):
         mask_idx = random.randint(0, len(tokenized_content) - 1)
         masked_word = tokenized_content[mask_idx]
         tokenized_content[mask_idx] = '[MASK]'
+        
 
         # get the bert index of the masked_word
         masked_word_idx = self.bert_tokenizer.convert_tokens_to_ids(masked_word)
@@ -169,6 +193,7 @@ class MaskImdbDataset(torch.utils.data.Dataset):
         #if feature list is shorter than 2000, pad it with a value 1 greater than the size of the vocabulary
         if len(feature_list) < 2000:
             feature_list = np.pad(feature_list, (0, 2000 - len(feature_list)), 'constant', constant_values= len(self.tokenizer.countvectorizer.vocabulary_))
+
         return torch.LongTensor(feature_list), torch.LongTensor([masked_word_idx])
 
 
@@ -223,3 +248,51 @@ class MaskWikiDataset(torch.utils.data.Dataset):
         if len(feature_list) < 2000:
             feature_list = np.pad(feature_list, (0, 2000 - len(feature_list)), 'constant', constant_values= len(self.tokenizer.countvectorizer.vocabulary_))
         return torch.LongTensor(feature_list), torch.LongTensor([masked_word_idx])
+
+class CBOWWikiDataset(torch.utils.data.Dataset):
+    def __init__(self, tokenizer, mini=False):
+        self.tokenizer = tokenizer
+        tokenizer_path = os.path.join(os.path.dirname(__file__), "../data/bert_tokenizer")
+        self.bert_tokenizer = BertTokenizer.from_pretrained(tokenizer_path)
+
+        self.dataset_books = load_from_disk(os.path.expanduser("~/hf_datasets/bookcorpus"))['train']
+        self.dataset_wiki = load_from_disk(os.path.expanduser("~/hf_datasets/wikipedia"))['train']
+        
+        self.mini = mini
+
+        self.length = len(self.dataset_books) + len(self.dataset_wiki)
+        print("Dataset length: ", self.length)
+    def __len__(self):
+        return self.length
+
+    def __getitem__(self, idx):
+        
+        if self.mini:
+            idx = idx % 50
+        if idx < len(self.dataset_books):
+            content = self.dataset_books[idx]['text']
+        else:
+            content = self.dataset_wiki[idx - len(self.dataset_books)]['text']
+
+        tokenized_content = self.bert_tokenizer.tokenize(content)[:512]
+        #select a random token to mask
+        mask_idx = random.randint(0, len(tokenized_content) - 1)
+        masked_word = tokenized_content[mask_idx]
+        masked_word_idx = self.bert_tokenizer.convert_tokens_to_ids(masked_word)
+
+        before_tokens = tokenized_content[max(0, mask_idx-10):mask_idx]
+        after_tokens = tokenized_content[mask_idx+1:min(mask_idx+11, len(tokenized_content))]
+
+        #use convert_tokens_to_string
+        before_phase = self.bert_tokenizer.convert_tokens_to_string(before_tokens)
+        after_phrase = self.bert_tokenizer.convert_tokens_to_string(after_tokens)
+
+        #disable mask mode
+        self.tokenizer.transform(["Turning off mask mode"], mask=False)
+        features_before = get_features(self.tokenizer, before_phase, mask=False, pad_dim=5, pad_value=len(self.tokenizer.countvectorizer.vocabulary_))
+        features_after = get_features(self.tokenizer, after_phrase, mask=False, pad_dim=5, pad_value=len(self.tokenizer.countvectorizer.vocabulary_))
+
+         # get the bert index of the masked_word
+        return torch.stack([torch.LongTensor(features_before),torch.LongTensor(features_after)]), torch.LongTensor([masked_word_idx])
+
+        

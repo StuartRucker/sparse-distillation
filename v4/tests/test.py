@@ -71,11 +71,35 @@ class Test(unittest.TestCase):
         assert len(content) > 50
         content = get_content("IMDB_test", mini=True)
         assert len(content) > 50
+
     def test_wikibooks(self):
         content = get_content("wikibooks", mini=True)
         for c in content:
             print(c)
         
+    def test_cbow_dataset(self):
+        tokenizer = Tokenizer(None, "wikibooks", max_features=100, mini=True)
+        content = get_pretrain_dataset("wikibooks",tokenizer, mini=True, mode='CBOW')
+        
+        tokenizer_path = os.path.join(os.path.dirname(__file__), "../../data/bert_tokenizer")
+        bert_tokenizer = BertTokenizer.from_pretrained(tokenizer_path)
+
+        index_to_ngram = {}
+        for ngram, index in tokenizer.countvectorizer.vocabulary_.items():
+            index_to_ngram[index] = ngram
+        index_to_ngram[100]='PAD'
+        print(index_to_ngram)
+        for (before_indices, after_indices), label in content:
+            print("before:")
+            for b in before_indices:
+                print(index_to_ngram[int(b)])
+            print("after:")
+            for b in after_indices:
+                print(index_to_ngram[int(b)])
+            print("label:")
+            print(bert_tokenizer.convert_ids_to_tokens([int(label[0])]))
+            
+
 
 
         

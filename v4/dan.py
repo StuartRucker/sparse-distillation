@@ -17,6 +17,27 @@ from data import get_ft_dataset, get_pretrain_dataset
 
 
 
+class CBOW(nn.Module):
+    def __init__(self, embed_dimension=1000, intermediate_dimension=1000, num_embeddings=1000000, pad_dimension=1, num_classes=2):
+        super(CBOW, self).__init__()  
+        #create embedding bag
+        self.pad_dimension = pad_dimension
+        self.embed = nn.EmbeddingBag(num_embeddings, embedding_dim=embed_dimension, mode='mean', sparse=True, padding_idx=num_embeddings-1)
+        self.fc1 = nn.Linear(embed_dimension*pad_dimension*2, num_classes)
+        # self.relu = nn.ReLU()
+        # self.fc2 = nn.Linear(intermediate_dimension, num_classes)
+        self.softmax = nn.Softmax(dim=1)
+
+    def forward(self, data):
+        before_words = data[0]
+        after_words = data[1]
+
+        embed_before =  self.embed(before_words)
+        embed_after =  self.embed(after_words)
+        concatenated_embeddings = torch.cat([embed_before, embed_after], dim=1)
+        # inter1 = self.relu(self.fc1(concatenated_embeddings))
+        # return self.softmax(self.fc2(inter1))
+        return self.softmax(self.fc1(concatenated_embeddings))
 
 class DAN(nn.Module):
     def __init__(self, embed_dimension=1000, intermediate_dimension=1000, num_embeddings=1000000, num_classes=2,):
@@ -77,7 +98,7 @@ def eval_model(model, data_loader, device, limit=100000):
     model.train()
     return correct/total
 
-def train_mask_model(mask_model, tokenizer, corpus, mini=False, run_name='unnamed', from_scratch=False):
+def train_mask_model(mask_model, pretrain_model, tokenizer, corpus, mini=False, run_name='unnamed', from_scratch=False):
     assert 'pretrain' in run_name.lower()
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     mask_model.to(device)
@@ -92,7 +113,7 @@ def train_mask_model(mask_model, tokenizer, corpus, mini=False, run_name='unname
     optimizer_sparse = torch.optim.SparseAdam( sparse_params, lr=config['pretrain_learning_rate'])
 
     print("Corpus: ", corpus)
-    train_dataset = get_pretrain_dataset(corpus, tokenizer, mini)
+    train_dataset = get_pretrain_dataset(corpus, tokenizer, mini=mini, mode=pretrain_model)
     train_loader = DataLoader(train_dataset, batch_size=config['pretrain_batch_size'], shuffle=True, num_workers=4, pin_memory=True)
 
     
@@ -166,6 +187,7 @@ def train_model(model, tokenizer, d_train, d_test, mini=False, run_name='unnamed
             optimizer.zero_grad()
             optimizer_sparse.zero_grad()
             
+
             output = model(data)
 
 
@@ -184,7 +206,7 @@ def train_model(model, tokenizer, d_train, d_test, mini=False, run_name='unnamed
 
         wandb.log({'Finetune/Accuracy/train': eval_model(model, train_loader, device, limit=1000),
             'Finetune/Accuracy/test': eval_model(model, test_loader, device, limit=1000),
-            'Finetune/iteration': epoch*len(train_loader)
+            'Finetune/iteration': (1+epoch)*len(train_loader)
         })
         
         
