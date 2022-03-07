@@ -289,8 +289,8 @@ class CBOWWikiDataset(torch.utils.data.Dataset):
 
         #disable mask mode
         self.tokenizer.transform(["Turning off mask mode"], mask=False)
-        features_before = get_features(self.tokenizer, before_phase, mask=False, pad_dim=5, pad_value=len(self.tokenizer.countvectorizer.vocabulary_))
-        features_after = get_features(self.tokenizer, after_phrase, mask=False, pad_dim=5, pad_value=len(self.tokenizer.countvectorizer.vocabulary_))
+        features_before = get_features(self.tokenizer, before_phase, mask=False, pad_dim=30, pad_value=len(self.tokenizer.countvectorizer.vocabulary_))
+        features_after = get_features(self.tokenizer, after_phrase, mask=False, pad_dim=30, pad_value=len(self.tokenizer.countvectorizer.vocabulary_))
 
          # get the bert index of the masked_word
         return torch.stack([torch.LongTensor(features_before),torch.LongTensor(features_after)]), torch.LongTensor([masked_word_idx])

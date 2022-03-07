@@ -23,10 +23,10 @@ class CBOW(nn.Module):
         #create embedding bag
         self.pad_dimension = pad_dimension
         self.embed = nn.EmbeddingBag(num_embeddings, embedding_dim=embed_dimension, mode='mean', sparse=True, padding_idx=num_embeddings-1)
-        self.fc1 = nn.Linear(embed_dimension*pad_dimension*2, num_classes)
+        self.fc1 = nn.Linear(embed_dimension, num_classes)
         # self.relu = nn.ReLU()
         # self.fc2 = nn.Linear(intermediate_dimension, num_classes)
-        self.softmax = nn.Softmax(dim=1)
+        self.softmax = nn.LogSoftmax(dim=1)
 
     def forward(self, data):
         before_words = data[:,0]
@@ -34,7 +34,7 @@ class CBOW(nn.Module):
 
         embed_before =  self.embed(before_words)
         embed_after =  self.embed(after_words)
-        concatenated_embeddings = torch.cat([embed_before, embed_after], dim=1)
+        concatenated_embeddings = embed_before+embed_after#torch.cat([embed_before, embed_after], dim=1)
         # inter1 = self.relu(self.fc1(concatenated_embeddings))
         # return self.softmax(self.fc2(inter1))
         return self.softmax(self.fc1(concatenated_embeddings))
