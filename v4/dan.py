@@ -47,7 +47,7 @@ class DAN(nn.Module):
         self.fc1 = nn.Linear(embed_dimension, intermediate_dimension)
         self.relu = nn.ReLU()
         self.fc2 = nn.Linear(intermediate_dimension, num_classes)
-        self.softmax = nn.Softmax(dim=1)
+        self.softmax = nn.LogSoftmax(dim=1)
 
     def forward(self, x):
         embed =  self.embed(x)
