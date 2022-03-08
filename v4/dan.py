@@ -169,10 +169,10 @@ def train_model(model, tokenizer, d_train, d_test, mini=False, run_name='unnamed
     optimizer_sparse = torch.optim.SparseAdam( sparse_params, lr=config['finetune_learning_rate'])
 
     train_dataset = get_ft_dataset(d_train, tokenizer, mini)
-    train_loader = DataLoader(train_dataset, batch_size=config['finetune_batch_size'], shuffle=True, num_workers=4, pin_memory=True)
+    train_loader = DataLoader(train_dataset, batch_size=config['finetune_batch_size'], shuffle=True, pin_memory=True)
 
     test_dataset = get_ft_dataset(d_test, tokenizer, mini)
-    test_loader = DataLoader(test_dataset, batch_size=config['finetune_batch_size'], shuffle=True, num_workers=4, pin_memory=True)
+    test_loader = DataLoader(test_dataset, batch_size=config['finetune_batch_size'], shuffle=True, pin_memory=True)
 
     model.train()
     criterion = torch.nn.CrossEntropyLoss()

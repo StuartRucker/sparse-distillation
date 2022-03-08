@@ -18,7 +18,14 @@ def get_amazon_content(path):
             json_object = json.loads(line)
             content.append(json_object['reviewText'])
     return content
-
+def get_wmt14_content(mini, language, mode):
+    dataset_wmt14_en_train = load_from_disk(os.path.expanduser("~/hf_datasets/wmt14"))[mode]
+    for i in range(len(dataset_wmt14_en_train)):
+        yield dataset_wmt14_en_train[i]['translation'][language]
+        if mini and i > 10:
+            break
+        if i > 5000000:
+            break
 def get_imdb_content(mini, train=True):
     path = os.path.join(os.path.dirname(__file__), "../data/imdb/train/*/*.txt" if train else "../data/imdb/test/*/*.txt")
     files = glob.glob(path)
@@ -68,6 +75,10 @@ def get_content(dataset_name, mini=False):
         return get_imdb_content(mini, train=False)
     elif dataset_name == 'wikibooks':
         return get_wikibooks_content(mini)
+    elif dataset_name == 'wmt14_en_train':
+        return get_wmt14_content(mini, 'en', 'train')
+    elif dataset_name == 'wmt14_de_train':
+        return get_wmt14_content(mini, 'de', 'train')
     else:
         raise ValueError('Invalid dataset name')
 
@@ -294,5 +305,36 @@ class CBOWWikiDataset(torch.utils.data.Dataset):
 
          # get the bert index of the masked_word
         return torch.stack([torch.LongTensor(features_before),torch.LongTensor(features_after)]), torch.LongTensor([masked_word_idx])
+
+
+
+
+
+
+def get_barlow_dataset(tokenizer_en, tokenizer_foreign, mini=False):
+    return BarlowDataset(tokenizer_en, tokenizer_foreign, mini)
+
+class BarlowDataset(torch.utils.data.Dataset):
+    def __init__(self, tokenizer_en, tokenizer_foreign, mini=False):
+        self.tokenizer_en = tokenizer_en
+        self.tokenizer_foreign = tokenizer_foreign
+        self.mini = mini
+
+        self.dataset = load_from_disk(os.path.expanduser("~/hf_datasets/wmt14"))['train']
+        self.length = len(self.dataset)
+        print("Dataset length: ", self.length)
+    def __len__(self):
+        return self.length
+
+    def __getitem__(self, idx):
+        # if self.mini:
+        #     idx = idx % 50
+        content_en = self.dataset[idx]['translation']['en']
+        content_foreign = self.dataset[idx]['translation']['de']
+
+        features_en = get_features(self.tokenizer_en, content_en, mask=False, pad_dim=1000, pad_value=len(self.tokenizer_en.countvectorizer.vocabulary_))
+        features_foreign = get_features(self.tokenizer_foreign, content_foreign, mask=False, pad_dim=1000, pad_value=len(self.tokenizer_foreign.countvectorizer.vocabulary_))
+
+        return torch.LongTensor(features_en), torch.LongTensor(features_foreign)
 
         
