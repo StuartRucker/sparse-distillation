@@ -11,6 +11,8 @@ from torch.utils.data import Dataset, DataLoader
 from config import config as mega_config
 import torch.nn as nn
 
+from main import fix_print
+fix_print()
 
 from datetime import datetime
 
@@ -33,6 +35,8 @@ for key, value in mega_config.items():
     if key.startswith("finetune"):
         config[key] = value
 
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+
 def barlow_loss(z_a, z_b):
     # normalize repr. along the batch dimension
     z_a_norm = (z_a - torch.mean(z_a, dim=0)) / torch.std(z_a,dim=0) # NxD
@@ -43,10 +47,10 @@ def barlow_loss(z_a, z_b):
 
     # loss
     # c_diff = (c - eye(D)).pow(2) # DxD
-    c_diff = (c - torch.eye(c.shape[0])).pow(2) # DxD
+    c_diff = (c - torch.eye(c.shape[0], device=device)).pow(2) # DxD
     # multiply off-diagonal elems of c_diff by lambda
     # off_diagonal(c_diff).mul_(lambda)
-    mult_values = torch.ones(c_diff.shape)*config['lambda'] + torch.eye(c_diff.shape[0])*(1-config['lambda'])   
+    mult_values = torch.ones(c_diff.shape, device=device)*config['lambda'] + torch.eye(c_diff.shape[0],device=device)*(1-config['lambda'])   
     c_diff = c_diff * mult_values
     loss = c_diff.sum()
     return loss
@@ -68,10 +72,6 @@ embed_layer_foreign = nn.EmbeddingBag(num_embeddings_foreign, embedding_dim=conf
 
 barlow_en = BARLOW(embed_layer_en, embed_dimension=config['embed_dimension'], num_embeddings=num_embeddings_en, output_dimension=config['output_dimension'])
 barlow_foreign = BARLOW(embed_layer_foreign, embed_dimension=config['embed_dimension'], num_embeddings=num_embeddings_foreign, output_dimension=config['output_dimension'])
-
-
-
-device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 
 barlow_en.to(device)
