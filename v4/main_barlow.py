@@ -55,7 +55,7 @@ def barlow_loss(z_a, z_b):
     loss = c_diff.sum()
     return loss
 
-wandb.init(project="Barlow", config=config, mode='disabled')
+wandb.init(project="Barlow", config=config)
 
 
 print("About to Create English Tokenizer...")
@@ -117,10 +117,9 @@ for epoch in range(20):
         optimizer_sparse.step()
         
         if iteration_cnt % config['log_every'] == 0:
-            wandb.log({'Pretrain/Loss/train': loss.item(), 'Pretrain/iteration': iteration_cnt})
             print("Iteration: ", iteration_cnt, " Loss: ", loss.item())
             
-        
+        wandb.log({'Pretrain/Loss/train': loss.item(), 'Pretrain/iteration': iteration_cnt})
         iteration_cnt += 1
 
 print("Finished Pretraining Using Barlow")
@@ -131,10 +130,11 @@ del embed_layer_en
 del embed_layer_foreign
 del barlow_en
 del barlow_foreign
-
+del optimizer
+del optimizer_sparse
 #Fine Tuning
 
 model = DAN(num_embeddings = num_embeddings_en)
 model.embed.weight.data = saved_weights
-    
+
 train_model(model, tokenizer_en, "IMDB_train", 'IMDB_test', mini=config['mini'], run_name="Barlow Pretrained", from_scratch=True)

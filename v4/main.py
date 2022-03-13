@@ -33,6 +33,7 @@ def fix_print():
     def print(*args, **kwargs):
         _orig_print(*args, flush=True, **kwargs)
     builtins.print = print
+    
 def main(args):
     fix_print()
 

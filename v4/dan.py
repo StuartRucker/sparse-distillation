@@ -26,7 +26,7 @@ class CBOW(nn.Module):
         self.fc1 = nn.Linear(embed_dimension, num_classes)
         # self.relu = nn.ReLU()
         # self.fc2 = nn.Linear(intermediate_dimension, num_classes)
-        self.softmax = nn.LogSoftmax(dim=1)
+        # self.softmax = nn.LogSoftmax(dim=1)
 
     def forward(self, data):
         before_words = data[:,0]
@@ -37,7 +37,8 @@ class CBOW(nn.Module):
         concatenated_embeddings = embed_before+embed_after#torch.cat([embed_before, embed_after], dim=1)
         # inter1 = self.relu(self.fc1(concatenated_embeddings))
         # return self.softmax(self.fc2(inter1))
-        return self.softmax(self.fc1(concatenated_embeddings))
+        # return self.softmax(self.fc1(concatenated_embeddings))
+        return self.fc1(concatenated_embeddings)
 
 class DAN(nn.Module):
     def __init__(self, embed_dimension=1000, intermediate_dimension=1000, num_embeddings=1000000, num_classes=2,):
@@ -47,12 +48,12 @@ class DAN(nn.Module):
         self.fc1 = nn.Linear(embed_dimension, intermediate_dimension)
         self.relu = nn.ReLU()
         self.fc2 = nn.Linear(intermediate_dimension, num_classes)
-        self.softmax = nn.LogSoftmax(dim=1)
+        # self.softmax = nn.LogSoftmax(dim=1)
 
     def forward(self, x):
         embed =  self.embed(x)
         inter1 = self.relu(self.fc1(embed))
-        return self.softmax(self.fc2(inter1))
+        return self.fc2(inter1)
 
 
 def load_model(model, run_name):
