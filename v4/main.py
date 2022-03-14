@@ -2,6 +2,7 @@ import argparse
 
 from tokenizer import Tokenizer
 from dan import train_model, train_mask_model, DAN, CBOW
+from spacy_embeddings import get_spacy_embeddings
 import torch
 import wandb
 
@@ -46,6 +47,7 @@ def main(args):
     config['d_train'] = args.d_train
     config['d_test'] = args.d_test
     config['pretrain'] = args.pretrain
+    config['pretrain_model'] = args.pretrain_model
     config['kd'] = args.kd
     config['ft'] = args.ft
     config['mini'] = args.mini
@@ -63,25 +65,28 @@ def main(args):
     
     saved_weights = None
     if args.pretrain:
-        print("Beginning Pretraining...")
-        tokenizer.transform(["[MASK]"], mask=True) # put the tokenizer in mask mode
-        if args.pretrain_model == "CBOW":
-            mask_model =  CBOW(num_classes=tokenizer.get_bert_vocabulary_size(), intermediate_dimension=config['pretrain_intermediate_dimension'], 
-                    num_embeddings=len(tokenizer)+1, pad_dimension=1)
-        else:
-            mask_model = DAN(num_classes=tokenizer.get_bert_vocabulary_size(), intermediate_dimension=config['pretrain_intermediate_dimension'], 
-                    num_embeddings=len(tokenizer)+1)
-        
-        train_mask_model(mask_model, args.pretrain_model, tokenizer, args.corpus, mini=args.mini, run_name='pretrain:'+run_name, from_scratch=args.from_scratch)
-        
-        #transfer weights from mask model to model
-        embedding_weights = mask_model.embed.weight.data.clone()
-        
-        
-        print("Moving Model weights to later model...")
-        tokenizer.transform(["[MASK]"], mask=False) # put the tokenizer in mnormal mode
-        saved_weights = torch.cat([embedding_weights[:len(tokenizer)], embedding_weights[[-1]]], dim=0)
-        del mask_model
+        print(f"Beginning Pretraining... {args.pretrain_model}")
+        if args.pretrain_model == 'SPACY':
+            saved_weights = get_spacy_embeddings(tokenizer, config['embed_dimension'])
+        else: #CBOW, DAN
+            tokenizer.transform(["[MASK]"], mask=True) # put the tokenizer in mask mode
+            if args.pretrain_model == "CBOW":
+                mask_model =  CBOW(num_classes=tokenizer.get_bert_vocabulary_size(), intermediate_dimension=config['pretrain_intermediate_dimension'], 
+                        num_embeddings=len(tokenizer)+1, pad_dimension=1)
+            else:
+                mask_model = DAN(num_classes=tokenizer.get_bert_vocabulary_size(), intermediate_dimension=config['pretrain_intermediate_dimension'], 
+                        num_embeddings=len(tokenizer)+1)
+            
+            train_mask_model(mask_model, args.pretrain_model, tokenizer, args.corpus, mini=args.mini, run_name='pretrain:'+run_name, from_scratch=args.from_scratch)
+            
+            #transfer weights from mask model to model
+            embedding_weights = mask_model.embed.weight.data.clone()
+            
+            
+            print("Moving Model weights to later model...")
+            tokenizer.transform(["[MASK]"], mask=False) # put the tokenizer in mnormal mode
+            saved_weights = torch.cat([embedding_weights[:len(tokenizer)], embedding_weights[[-1]]], dim=0)
+            del mask_model
         
     model = DAN(num_embeddings=len(tokenizer)+1)
     if saved_weights is not None:

@@ -3,7 +3,7 @@ import os
 import unittest
 import torch
 from transformers import BertTokenizer
-
+from spacy_embeddings import get_spacy_embeddings
 #append parent directory to sys.path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -99,7 +99,14 @@ class Test(unittest.TestCase):
             print("label:")
             print(bert_tokenizer.convert_ids_to_tokens([int(label[0])]))
             
+    def test_spacy(self):
+        tokenizer = Tokenizer(None, "wikibooks", max_features=100, mini=True)
 
+        embeddings = get_spacy_embeddings(tokenizer, 1000)
+        
+        #assert that the embeddings are not all zeros
+        assert torch.std(embeddings) > .01
+        
 
 
         
