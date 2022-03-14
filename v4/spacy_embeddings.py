@@ -2,10 +2,16 @@
 
 import spacy
 import torch
+import pickle
+import os
+import numpy as np
 
 """Generates a pytorch weights object where embeddings are taken from spacy"""
 def get_spacy_embeddings(tokenizer, embedding_size):
-    nlp = spacy.load('en_core_web_lg')
+    # join the path of this file with ../../data/spacy.model
+    spacy_model_path = os.path.join(os.path.dirname(__file__), "../data/spacy.pickle")
+    print("Loading spacy model from {}".format(spacy_model_path))
+    nlp = pickle.load(open(spacy_model_path, "rb"))
     embeddings = torch.zeros(len(tokenizer)+1, embedding_size)
     for ngram, i in tokenizer.countvectorizer.vocabulary_.items():
         ngram = ngram.replace(" ##", "")
@@ -15,7 +21,7 @@ def get_spacy_embeddings(tokenizer, embedding_size):
         for token in doc:
             
             if token.has_vector:
-                base_embedding = torch.from_numpy(token.vector)
+                base_embedding = torch.from_numpy(np.array(token.vector).copy())
                 final_embedding = base_embedding.clone()
                 while final_embedding.shape[0] < embedding_size:
                     final_embedding = torch.cat((final_embedding, base_embedding))
