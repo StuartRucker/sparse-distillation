@@ -1,4 +1,5 @@
 config = {
+    'embed_dimension': 1000,
     'pretrain_max_epochs': 5, #unlikely to be used
     'pretrain_max_iterations': 10000,
     'pretrain_save_model_every': 10000,
@@ -13,6 +14,7 @@ config = {
 }
 
 # config = {
+    # 'embed_dimension': 1000,
 #     'pretrain_max_epochs': 5, #unlikely to be used
 #     'pretrain_max_iterations': 10,
 #     'pretrain_save_model_every': 5,
