@@ -16,6 +16,7 @@ class Tokenizer:
         self.mini = mini
 
         self.mask_mode = False
+        self.pretokenized_mode = False
         self.mask_vocabulary = {}
 
         self.path = os.path.join(os.path.dirname(__file__), "cached/tokenizers", self.name)
@@ -68,22 +69,31 @@ class Tokenizer:
         return x
     def transform(self, text, mask=False):
         # if mask mode expects the text to be tokenized
-        if mask and not self.mask_mode:
+        if mask and (not self.mask_mode or self.pretokenized_mode):
             if not self.mask_vocabulary:
                 self.generate_mask_vocabulary()
             self.normal_vocabulary = self.countvectorizer.vocabulary_
             self.normal_tokenizer = self.countvectorizer.tokenizer
             self.countvectorizer.tokenizer = self.skip_func
             self.countvectorizer.vocabulary_ = self.mask_vocabulary
-            
+
+            self.pretokenized_mode = False
             self.mask_mode = True
-        elif not mask and self.mask_mode:
+        elif not mask and (self.mask_mode or self.pretokenized_mode):
             self.countvectorizer.vocabulary_ = self.normal_vocabulary
             self.countvectorizer.tokenizer = self.normal_tokenizer
+
             self.mask_mode = False
+            self.pretokenized_mode = False
 
         return self.countvectorizer.transform(text)
-    
+    def transform_pretokenized(self, text):
+        if not self.pretokenized_mode:
+            self.normal_tokenizer = self.countvectorizer.tokenizer if not self.mask_mode else self.normal_tokenizer
+            self.countvectorizer.tokenizer = self.skip_func
+            self.pretokenized_mode = True
+        return self.countvectorizer.transform(text)
+        
     # returns the vocabulary size of the hugging face BertTokenizer
     def get_bert_vocabulary_size(self):
         tokenizer_path = os.path.join(os.path.dirname(__file__), "../data/bert_tokenizer")

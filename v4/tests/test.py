@@ -107,7 +107,12 @@ class Test(unittest.TestCase):
         #assert that the embeddings are not all zeros
         assert torch.std(embeddings) > .01
         
+    def test_electra(self):
+        tokenizer = Tokenizer(None, "wikibooks", max_features=100, mini=True)
+        dataset = get_pretrain_dataset("wikibooks",tokenizer, mini=True, mode='ELECTRA')
 
+        for a, b in dataset:
+            pass
 
         
 

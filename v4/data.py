@@ -102,6 +102,11 @@ def get_pretrain_dataset(dataset_name, tokenizer, mini=False, mode='DAN'):
             return CBOWWikiDataset(tokenizer, mini=mini)
         else:
             raise ValueError(f'Invalid CBOW dataset name {dataset_name}')
+    elif mode == 'ELECTRA':
+        if dataset_name == 'wikibooks':
+            return ElectraWikiDataset(tokenizer, mini=mini)
+        else:
+            raise ValueError(f'Invalid ELECTRA dataset name {dataset_name}')
     else:
         raise ValueError(f'Invalid pretrain mode {mode}')
 
@@ -307,6 +312,70 @@ class CBOWWikiDataset(torch.utils.data.Dataset):
         return torch.stack([torch.LongTensor(features_before),torch.LongTensor(features_after)]), torch.LongTensor([masked_word_idx])
 
 
+class ElectraWikiDataset(torch.utils.data.Dataset):
+    def __init__(self, tokenizer, mini=False):
+        self.tokenizer = tokenizer
+        tokenizer_path = os.path.join(os.path.dirname(__file__), "../data/bert_tokenizer")
+        self.bert_tokenizer = BertTokenizer.from_pretrained(tokenizer_path)
+
+        self.dataset_books = load_from_disk(os.path.expanduser("~/hf_datasets/bookcorpus"))['train']
+        self.dataset_wiki = load_from_disk(os.path.expanduser("~/hf_datasets/wikipedia"))['train']
+        
+        self.mini = mini
+
+        self.length = len(self.dataset_books) + len(self.dataset_wiki)
+        print("Dataset length: ", self.length)
+    def __len__(self):
+        return self.length
+
+    def __getitem__(self, idx):
+        
+        if self.mini:
+            idx = idx % 50
+        if idx < len(self.dataset_books):
+            content = self.dataset_books[idx]['text']
+        else:
+            content = self.dataset_wiki[idx - len(self.dataset_books)]['text']
+
+        tokenized_content = self.bert_tokenizer.tokenize(content)[:512]
+        #select a random token to mask
+        mask_idx = random.randint(0, len(tokenized_content) - 1)
+
+        before_index = max(0, mask_idx-5)
+        after_index = min(before_index+7, len(tokenized_content))
+        label = 0
+        if random.random() < 0.5:
+
+            # print("Deleting... ", tokenized_content[mask_idx])
+            
+            label = 1
+            #replace masked worth with random token
+            tokenized_content[mask_idx] = random.choice(list(self.bert_tokenizer.vocab.keys()))
+            # print("Replacing with... ", tokenized_content[mask_idx])
+            
+        
+        to_tokenize = tokenized_content[before_index:after_index]
+        # if label == 1:
+        #     print("Range: ", before_index, after_index, mask_idx)
+        #     print(to_tokenize)
+        
+        #formerly call to get_features
+        pad_dim,pad_value = 30, len(self.tokenizer.countvectorizer.vocabulary_)
+        cx = self.tokenizer.transform_pretokenized(to_tokenize).tocoo()
+
+        feature_list = []
+        for i,j,v in zip(cx.row, cx.col, cx.data):
+            feature_list += [j for _ in range(v)]
+        
+        #if feature list is longer than 2000, randomly sample 2000 elements frmo it
+        if len(feature_list) > pad_dim:
+            feature_list = random.sample(feature_list, pad_dim)
+        feature_list = np.array(feature_list)
+        #if feature list is shorter than 2000, pad it with a value 1 greater than the size of the vocabulary
+        if len(feature_list) < pad_dim:
+            feature_list = np.pad(feature_list, (0, pad_dim - len(feature_list)), 'constant', constant_values= pad_value)        
+
+        return torch.LongTensor(feature_list), torch.LongTensor([label])
 
 
 

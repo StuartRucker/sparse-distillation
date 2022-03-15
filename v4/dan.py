@@ -135,7 +135,12 @@ def train_mask_model(mask_model, pretrain_model, tokenizer, corpus, mini=False, 
             optimizer_sparse.zero_grad()
             
             output = mask_model(data)
-
+            
+            if pretrain_model == 'ELECTRA' and iteration_cnt % config['pretrain_log_every'] == 0:
+                with torch.no_grad():   
+                    accuracy = (target.flatten() == torch.argmax(output, dim=1)).float().mean()
+                    wandb.log({'Pretrain/Accuracy': float(accuracy), 'Pretrain/iteration': iteration_cnt})
+                    print(accuracy)
             loss = criterion(output, target.flatten())
             
             loss.backward()
