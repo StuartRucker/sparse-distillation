@@ -107,6 +107,11 @@ def get_pretrain_dataset(dataset_name, tokenizer, mini=False, mode='DAN'):
             return ElectraWikiDataset(tokenizer, mini=mini)
         else:
             raise ValueError(f'Invalid ELECTRA dataset name {dataset_name}')
+    elif mode == "EMBED":
+        if dataset_name == 'wikibooks':
+            return EmbedWikiDataset(tokenizer, mini=mini)
+        else:
+            raise ValueError(f'Invalid EMBED dataset name {dataset_name}')
     else:
         raise ValueError(f'Invalid pretrain mode {mode}')
 
@@ -407,3 +412,76 @@ class BarlowDataset(torch.utils.data.Dataset):
         return torch.LongTensor(features_en), torch.LongTensor(features_foreign)
 
         
+
+
+# dataset for which outputs the ngram ids, the positions of the ngrams, the length of the ngrams, and the position of the masked word
+class EmbedWikiDataset(torch.utils.data.Dataset):
+    def __init__(self, tokenizer, mini=False):
+        self.tokenizer = tokenizer
+        tokenizer_path = os.path.join(os.path.dirname(__file__), "../data/bert_tokenizer")
+        self.bert_tokenizer = BertTokenizer.from_pretrained(tokenizer_path)
+
+        self.dataset_books = load_from_disk(os.path.expanduser("~/hf_datasets/bookcorpus"))['train']
+        self.dataset_wiki = load_from_disk(os.path.expanduser("~/hf_datasets/wikipedia"))['train']
+
+        self.mini = mini
+
+        terms = np.array(list(self.tokenizer.countvectorizer.vocabulary_.keys()))
+        indices = np.array(list(self.tokenizer.countvectorizer.vocabulary_.values()))
+        self.inverse_vocabulary = terms[np.argsort(indices)]
+
+    def __len__(self):
+        return len(self.dataset_books) + len(self.dataset_wiki)
+    
+    def __getitem__(self, idx):
+        content = self.dataset_books[idx]['text'] if idx < len(self.dataset_books) else self.dataset_wiki[idx - len(self.dataset_books)]['text']
+        
+        tokenized_content = self.bert_tokenizer.tokenize(content)[:512]
+        #select a random token to mask
+        mask_idx = random.randint(0, len(tokenized_content) - 1)
+        masked_word = tokenized_content[mask_idx]
+        masked_word_idx = self.bert_tokenizer.convert_tokens_to_ids(masked_word)
+        tokenized_content[mask_idx] = "[FAKEMASK]"
+
+        start_index = max(0, mask_idx-10)
+        end_index = min(start_index+20, len(tokenized_content))
+        keep_tokens = tokenized_content[start_index:end_index]
+
+        #disable mask mode
+        self.tokenizer.transform(["Turning on mask mode"], mask=True)
+        features = get_features(self.tokenizer, keep_tokens, mask=True, pad_dim=50, pad_value=len(self.tokenizer.countvectorizer.vocabulary_))
+        
+        ## Get the string associated with each feature index using self.inverse_vocabulary
+        real_features = [f for f in features if f < len(self.inverse_vocabulary)]
+        feature_strings = [self.inverse_vocabulary[feature_idx] for feature_idx in real_features]
+
+        # get position of each feature_string in the original string
+        stripped_content = " ".join(keep_tokens)
+        index_to_position = []
+        cnt = 0
+        for tkn in keep_tokens:
+            for k in range(len(tkn)+1):
+                index_to_position += [cnt]
+            cnt += 1
+        
+        
+        # print(stripped_content)
+        # print(feature_strings)
+        positions = [index_to_position[stripped_content.find(feature_string)] for feature_string in feature_strings]
+        lengths = [1+num_spaces(feature_string) for feature_string in feature_strings]
+
+        # combine into one tensor 
+        # (real_features, positions, lengths, [mask_idx-start_index for i in range(len(real_features))])
+        x = torch.stack([torch.LongTensor(real_features), torch.LongTensor(positions), torch.LongTensor(lengths), torch.LongTensor([mask_idx-start_index for i in range(len(real_features))])], dim=0)
+
+        # pad/truncate x to be length (4, 50)
+        if x.shape[1] > 50:
+            x = x[:, :50]
+        if x.shape[1] < 50:
+            x = torch.cat([x, torch.zeros((4, 50-x.shape[1]), dtype=torch.long)], dim=1)
+        
+        y = torch.LongTensor([masked_word_idx])
+        return x, y
+
+def num_spaces(s):
+    return sum(1 for c in s if c == ' ')

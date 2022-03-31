@@ -16,6 +16,43 @@ import wandb
 from data import get_ft_dataset, get_pretrain_dataset
 
 
+class EMBED(nn.Module):
+    def __init__(self, embed_dimension=1000, intermediate_dimension=1000, num_embeddings=1000000, pad_dimension=1, num_classes=2):
+        super(EMBED, self).__init__()  
+        self.pad_dimension = pad_dimension
+        self.embed = nn.Embedding(num_embeddings, embedding_dim=embed_dimension, sparse=True, padding_idx=num_embeddings-1)
+        ##embeddings of tokens
+        self.lengthEmbed = nn.Embedding(5, embedding_dim=embed_dimension)
+        self.positionEmbed = nn.Embedding(600, embedding_dim=embed_dimension)
+        self.outputPositionEmbed = nn.Embedding(600, embedding_dim=intermediate_dimension)
+
+        self.layernorm = nn.LayerNorm([embed_dimension])
+        self.fc1 = nn.Linear(embed_dimension, intermediate_dimension)
+        self.fc2 = nn.Linear(intermediate_dimension, num_classes)
+
+
+    def forward(self, data):
+        # print(data.shape)
+        # print(data)
+        ngram_id = data[:,0]
+        ngram_position = data[:,1]
+        ngram_length = data[:,2]
+        ngram_output_position = data[:,3,0]
+
+        #for each word, sum the embedding, length embedding, and position embedding
+        wordembed = self.embed(ngram_id)
+        lengthEmbed = self.lengthEmbed(ngram_length)
+        positionEmbed = self.positionEmbed(ngram_position)
+        totalembed = wordembed + lengthEmbed + positionEmbed
+
+        #take the layernorm of the totalembed across all words, and then sum
+        totalembed = self.layernorm(totalembed)
+        totalembed = torch.sum(totalembed, dim=1)
+        
+        # pass through the fully connected layer
+        inter = self.fc1(totalembed) + self.outputPositionEmbed(ngram_output_position)
+        out = self.fc2(F.relu(inter))
+        return out
 
 class CBOW(nn.Module):
     def __init__(self, embed_dimension=1000, intermediate_dimension=1000, num_embeddings=1000000, pad_dimension=1, num_classes=2):
@@ -107,9 +144,13 @@ def train_mask_model(mask_model, pretrain_model, tokenizer, corpus, mini=False, 
 
     start_iteration_cnt = load_model(mask_model, run_name) if not from_scratch else -1
 
-    
-    dense_params = [param for name, param in mask_model.named_parameters() if 'embed' not in name.lower()]
-    sparse_params = [param for name, param in mask_model.named_parameters() if 'embed'  in name.lower()]
+    # for name, param in mask_model.named_parameters():
+    #     #check if the param is sparse
+    #     print(name)
+    #     print(param.is_sparse)
+
+    dense_params = [param for name, param in mask_model.named_parameters() if 'embed' not in name] #previously .lower()
+    sparse_params = [param for name, param in mask_model.named_parameters() if 'embed'  in name]
     optimizer = torch.optim.Adam(dense_params, lr=config['pretrain_learning_rate'])
     optimizer_sparse = torch.optim.SparseAdam( sparse_params, lr=config['pretrain_learning_rate'])
 

@@ -113,6 +113,16 @@ class Test(unittest.TestCase):
 
         for a, b in dataset:
             pass
+    def test_embed_dataset(self):
+        print("running test embed")
+        tokenizer = Tokenizer(None, "wikibooks", max_features=100, mini=True)
+        dataset = get_pretrain_dataset("wikibooks",tokenizer, mini=True, mode='EMBED')
+
+        for a, b, c, d in dataset:
+            print(a)
+            print(b)
+            print(c)
+            print(d)
 
         
 

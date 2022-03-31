@@ -1,7 +1,7 @@
 import argparse
 
 from tokenizer import Tokenizer
-from dan import train_model, train_mask_model, DAN, CBOW
+from dan import train_model, train_mask_model, DAN, CBOW, EMBED
 from spacy_embeddings import get_spacy_embeddings
 import torch
 import wandb
@@ -75,6 +75,9 @@ def main(args):
                         num_embeddings=len(tokenizer)+1, pad_dimension=1)
             elif args.pretrain_model == 'ELECTRA':
                 mask_model =  DAN(num_classes=2, intermediate_dimension=config['pretrain_intermediate_dimension'], 
+                        num_embeddings=len(tokenizer)+1)
+            elif args.pretrain_model == 'EMBED':
+                mask_model =  EMBED(num_classes=tokenizer.get_bert_vocabulary_size(), intermediate_dimension=config['pretrain_intermediate_dimension'], 
                         num_embeddings=len(tokenizer)+1)
             else:
                 mask_model = DAN(num_classes=tokenizer.get_bert_vocabulary_size(), intermediate_dimension=config['pretrain_intermediate_dimension'], 
